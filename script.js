@@ -2,7 +2,6 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = 800; canvas.height = 600;
 
-// UI 요소
 const stageValUI = document.getElementById('stage-val');
 const scoreValUI = document.getElementById('score-val');
 const weaponLvlUI = document.getElementById('weapon-lvl');
@@ -22,7 +21,6 @@ const victoryScore = document.getElementById('victory-score');
 const startBtn = document.getElementById('start-btn');
 const weaponCards = document.querySelectorAll('.weapon-card');
 
-// 게임 진행 제어
 const maxStage = 5;
 let selectedWeapon = null;
 let stage = 1; let score = 0; let stageScoreOffset = 0;
@@ -30,13 +28,11 @@ let isGameOver = false; let isGameStarted = false;
 let animationId, spawnInterval;
 let bossSpawned = false;
 
-// 보스 기믹용 변수
 let obstacles = [];
 let obstacleInterval = null;
 let shieldZone = null;
 let waveWarningTimer = 0;
 
-// 마우스 상태
 let isMouseDown = false;
 
 const keys = { w: false, a: false, s: false, d: false, space: false, e: false };
@@ -44,7 +40,6 @@ const mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 
 const getDist = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);
 
-// 무기 선택
 weaponCards.forEach(card => {
   card.addEventListener('click', () => {
     weaponCards.forEach(c => c.classList.remove('selected'));
@@ -59,12 +54,11 @@ class Player {
     this.x = x; this.y = y;
     this.radius = 12;
     this.color = '#00ffcc';
-    this.speed = 4.2;
+    this.speed = 4.0;
     this.angle = 0;
     this.weaponType = weaponType;
     this.weaponLevel = 1;
     
-    // 체력
     this.hp = 5; 
     this.maxHp = 8;
     
@@ -74,26 +68,22 @@ class Player {
     this.swingProgress = 0;
     this.lastShotTime = 0;
 
-    // 근접검 전용 카운터 (스택)
     this.swordSwingCount = 0;
     this.maxSwordSwingCount = 10;
 
-    // 대시 시스템
     this.isDashing = false;
     this.dashTimer = 0;
     this.lastDashTime = 0;
-    this.dashCooldown = 2000;
+    this.dashCooldown = 2200;
     this.dashDir = { x: 0, y: 0 };
 
-    // 일반 무기용 궁극기 게이지
     this.ultGauge = 0;
     this.maxUltGauge = 100;
 
-    // 스나이퍼 차징 및 장전 시스템
     this.sniperChargeTime = 0;
-    this.maxSniperCharge = 45; 
+    this.maxSniperCharge = 65; 
     this.lastReloadTime = 0;
-    this.reloadCooldown = 700;  
+    this.reloadCooldown = 1100; 
     this.isReloading = false;
   }
 
@@ -111,20 +101,19 @@ class Player {
       ctx.globalAlpha = 0.4;
     }
 
-    // 검 강화 휘두르기 시각 효과 (레벨에 따라 대폭 확대)
     if (this.weaponType === 'sword' && this.isSwinging) {
       ctx.save();
       ctx.rotate(this.angle + this.swingProgress);
-      const swordRange = 100 + this.weaponLevel * 25; // 레벨업 시 공격범위 대폭 확대
+      const swordRange = 75 + this.weaponLevel * 10;
       
       let swordGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, swordRange);
       swordGrad.addColorStop(0, 'rgba(0, 255, 204, 0.1)');
-      swordGrad.addColorStop(0.8, 'rgba(0, 255, 204, 0.6)');
+      swordGrad.addColorStop(0.8, 'rgba(0, 255, 204, 0.5)');
       swordGrad.addColorStop(1, '#ffffff');
 
       ctx.fillStyle = swordGrad;
       ctx.beginPath();
-      ctx.arc(0, 0, swordRange, -1.2, 1.2);
+      ctx.arc(0, 0, swordRange, -1.0, 1.0);
       ctx.lineTo(0, 0);
       ctx.fill();
       ctx.restore();
@@ -143,7 +132,6 @@ class Player {
     ctx.fill();
     ctx.restore();
 
-    // 스나이퍼 차징 UI (아이템으로 레벨업 시 해금/강화)
     if (this.weaponType === 'sniper') {
       if (this.isReloading) {
         ctx.save();
@@ -153,11 +141,10 @@ class Player {
         ctx.fillText('RELOADING...', this.x, this.y - 22);
         ctx.restore();
       } else if (this.weaponLevel > 1 && isMouseDown) {
-        // 아이템 먹고 Lv.2 이상일 때 차징 효과 발동
         const chargeRatio = Math.min(1, this.sniperChargeTime / this.maxSniperCharge);
         ctx.save();
         ctx.strokeStyle = chargeRatio >= 1 ? '#ff0000' : '#ff9900';
-        ctx.lineWidth = 4 + this.weaponLevel;
+        ctx.lineWidth = 3 + Math.floor(this.weaponLevel * 0.5);
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * chargeRatio));
         ctx.stroke();
@@ -177,14 +164,14 @@ class Player {
     const now = Date.now();
     
     if (this.weaponType === 'sniper' && this.isReloading) {
-      if (now - this.lastReloadTime >= Math.max(300, this.reloadCooldown - (this.weaponLevel * 80))) {
+      if (now - this.lastReloadTime >= Math.max(500, this.reloadCooldown - (this.weaponLevel * 40))) {
         this.isReloading = false;
       }
     }
 
     if (this.isDashing) {
-      this.x += this.dashDir.x * 9;
-      this.y += this.dashDir.y * 9;
+      this.x += this.dashDir.x * 8.5;
+      this.y += this.dashDir.y * 8.5;
       this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
       this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
       
@@ -220,14 +207,13 @@ class Player {
     if (this.invincibleTimer > 0) this.invincibleTimer--;
 
     if (this.isSwinging) {
-      this.swingProgress += 0.3;
-      if (this.swingProgress > 1.2) {
+      this.swingProgress += 0.25;
+      if (this.swingProgress > 1.0) {
         this.isSwinging = false;
         this.swingProgress = 0;
       }
     }
 
-    // 스나이퍼 차징 (아이템 강화 후 가능)
     if (this.weaponType === 'sniper' && isMouseDown && !this.isReloading && this.weaponLevel > 1) {
       this.sniperChargeTime++;
     }
@@ -262,31 +248,28 @@ class Player {
   }
 
   useSkillOrUltimate() {
-    // 검 강화 스킬 (E 키)
     if (this.weaponType === 'sword') {
       if (this.swordSwingCount >= 10) {
-        // 궁극기 (스택 10): 360도 전 방향 차원의 검기 폭발 (Omni Slashes)
         this.swordSwingCount = 0;
-        createExplosion(this.x, this.y, '#ff3366', 50);
+        createExplosion(this.x, this.y, '#ff3366', 40);
 
-        const sliceCount = 12 + this.weaponLevel * 2;
+        const sliceCount = 8 + this.weaponLevel;
         for (let i = 0; i < sliceCount; i++) {
           const a = (Math.PI * 2 / sliceCount) * i;
           projectiles.push(new Projectile(
-            this.x, this.y, 24, '#ff3366',
-            { x: Math.cos(a) * 14, y: Math.sin(a) * 14 },
-            700, 20 + this.weaponLevel * 6, true, true
+            this.x, this.y, 16, '#ff3366',
+            { x: Math.cos(a) * 11, y: Math.sin(a) * 11 },
+            500, 12 + this.weaponLevel * 2, true, true
           ));
         }
       } else if (this.swordSwingCount >= 3) {
-        // 기본 스킬 (스택 3 이상): 강력한 전방 대형 검기 (Mega Wave)
         this.swordSwingCount -= 3;
-        createExplosion(this.x, this.y, '#00ffcc', 25);
+        createExplosion(this.x, this.y, '#00ffcc', 20);
         
         projectiles.push(new Projectile(
-          this.x, this.y, 32, '#00ffcc',
-          { x: Math.cos(this.angle) * 16, y: Math.sin(this.angle) * 16 },
-          600, 10 + this.weaponLevel * 5, true, true
+          this.x, this.y, 22, '#00ffcc',
+          { x: Math.cos(this.angle) * 13, y: Math.sin(this.angle) * 13 },
+          450, 6 + this.weaponLevel * 2, true, true
         ));
       }
       return;
@@ -295,17 +278,17 @@ class Player {
     if (this.ultGauge < this.maxUltGauge) return;
     this.ultGauge = 0;
 
-    createExplosion(canvas.width / 2, canvas.height / 2, '#00ffcc', 150);
+    createExplosion(canvas.width / 2, canvas.height / 2, '#00ffcc', 120);
     enemyProjectiles = [];
 
     enemies.forEach(e => {
-      e.hp -= 20 + this.weaponLevel * 5;
-      createExplosion(e.x, e.y, e.color, 15);
+      e.hp -= 12 + this.weaponLevel * 2;
+      createExplosion(e.x, e.y, e.color, 12);
     });
     enemies = enemies.filter(e => e.hp > 0);
 
     if (boss) {
-      boss.takeDamage(40 + this.weaponLevel * 10);
+      boss.takeDamage(25 + this.weaponLevel * 5);
     }
   }
 
@@ -320,7 +303,6 @@ class Player {
   releaseSniperShot() {
     if (this.weaponType !== 'sniper' || this.isReloading) return;
 
-    // 아이템으로 레벨업(Lv2 이상)을 해야 차징 탄환 사격
     if (this.weaponLevel > 1) {
       const chargeRatio = Math.min(1, this.sniperChargeTime / this.maxSniperCharge);
       this.sniperChargeTime = 0;
@@ -328,39 +310,36 @@ class Player {
       this.isReloading = true;
       this.lastReloadTime = Date.now();
 
-      if (chargeRatio >= 0.8) {
-        // 풀 차징 사격 (강력한 주황/레드 관통탄)
-        const pSpeed = 40;
-        createExplosion(this.x, this.y, '#ff0000', 30);
+      if (chargeRatio >= 0.85) {
+        const pSpeed = 30;
+        createExplosion(this.x, this.y, '#ff0000', 20);
         projectiles.push(new Projectile(
           this.x + Math.cos(this.angle) * 20,
           this.y + Math.sin(this.angle) * 20,
-          16 + this.weaponLevel * 2, '#ff0000',
+          11 + Math.floor(this.weaponLevel * 0.5), '#ff0000',
           { x: Math.cos(this.angle) * pSpeed, y: Math.sin(this.angle) * pSpeed },
-          1500, 35 + this.weaponLevel * 10, true, true
+          1100, 18 + this.weaponLevel * 3, true, true
         ));
       } else {
-        // 부분 차징
-        const pSpeed = 26;
+        const pSpeed = 22;
         projectiles.push(new Projectile(
           this.x + Math.cos(this.angle) * 20,
           this.y + Math.sin(this.angle) * 20,
-          9 + this.weaponLevel, '#ff9900',
+          7, '#ff9900',
           { x: Math.cos(this.angle) * pSpeed, y: Math.sin(this.angle) * pSpeed },
-          1000, 12 + this.weaponLevel * 4, true, false
+          800, 8 + this.weaponLevel * 1.5, true, false
         ));
       }
     } else {
-      // 레벨 1 기본 스나이퍼 사격
       this.isReloading = true;
       this.lastReloadTime = Date.now();
-      const pSpeed = 22;
+      const pSpeed = 20;
       projectiles.push(new Projectile(
         this.x + Math.cos(this.angle) * 20,
         this.y + Math.sin(this.angle) * 20,
-        7, '#ffcc00',
+        6, '#ffcc00',
         { x: Math.cos(this.angle) * pSpeed, y: Math.sin(this.angle) * pSpeed },
-        900, 15, true, false
+        750, 9, true, false
       ));
     }
   }
@@ -369,65 +348,53 @@ class Player {
     const now = Date.now();
     if (this.weaponType === 'sniper') return;
 
-    let cooldown = 250;
-    if (this.weaponType === 'shotgun' || this.weaponType === 'double') cooldown = Math.max(200, 420 - this.weaponLevel * 40);
-    if (this.weaponType === 'sword') cooldown = 200; 
+    let cooldown = 350;
+    if (this.weaponType === 'shotgun') cooldown = Math.max(300, 500 - this.weaponLevel * 20);
+    if (this.weaponType === 'sword') cooldown = 300; 
 
     if (now - this.lastShotTime < cooldown) return;
     this.lastShotTime = now;
 
-    // 샷건 개편 (레벨업 시 펠릿 대폭 증가 + 강력한 광역 넉백)
-    if (this.weaponType === 'shotgun' || this.weaponType === 'double') {
-      const pelletCount = 6 + this.weaponLevel * 3; // 레벨당 펠릿 급증
-      const spreadAngle = 0.65; 
-      const pSpeed = 18 + this.weaponLevel;
-      const maxDist = 300 + this.weaponLevel * 40; 
+    if (this.weaponType === 'shotgun') {
+      const pelletCount = 3 + Math.floor((this.weaponLevel - 1) * 1.0); 
+      const spreadAngle = 0.45; 
+      const pSpeed = 15 + Math.floor(this.weaponLevel * 0.5);
+      const maxDist = 220 + this.weaponLevel * 20;
 
-      createExplosion(this.x + Math.cos(this.angle) * 15, this.y + Math.sin(this.angle) * 15, '#ff9900', 15);
-      this.x -= Math.cos(this.angle) * 6;
-      this.y -= Math.sin(this.angle) * 6;
+      createExplosion(this.x + Math.cos(this.angle) * 15, this.y + Math.sin(this.angle) * 15, '#ff9900', 8);
+      this.x -= Math.cos(this.angle) * 3;
+      this.y -= Math.sin(this.angle) * 3;
 
       for (let i = 0; i < pelletCount; i++) {
-        const angleOffset = (i - (pelletCount - 1) / 2) * (spreadAngle / pelletCount) + (Math.random() - 0.5) * 0.1;
+        const angleOffset = pelletCount === 1 ? 0 : (i - (pelletCount - 1) / 2) * (spreadAngle / pelletCount);
         const currentAngle = this.angle + angleOffset;
         
         projectiles.push(new Projectile(
           this.x + Math.cos(currentAngle) * 15,
           this.y + Math.sin(currentAngle) * 15,
-          6 + Math.floor(this.weaponLevel * 0.5), '#ff9900',
+          4, '#ff9900',
           { x: Math.cos(currentAngle) * pSpeed, y: Math.sin(currentAngle) * pSpeed },
-          maxDist, 3 + Math.floor(this.weaponLevel * 1.5), true, true // 넉백 및 관통
+          maxDist, 2 + Math.floor(this.weaponLevel * 0.5), false, true
         ));
       }
-    } else if (this.weaponType === 'sword') {
-      // 검 강화 및 개편
+    } 
+    else if (this.weaponType === 'sword') {
       if (!this.isSwinging) {
         this.isSwinging = true;
-        this.swingProgress = -1.2;
+        this.swingProgress = -1.0;
         if (this.swordSwingCount < this.maxSwordSwingCount) this.swordSwingCount++;
 
-        const swordRange = 100 + this.weaponLevel * 25; // 확장된 공격 범위
-        
-        // 관통 검기 파동 (Slash Wave) 자동 발사
-        projectiles.push(new Projectile(
-          this.x + Math.cos(this.angle) * 20,
-          this.y + Math.sin(this.angle) * 20,
-          14 + this.weaponLevel * 2, 'rgba(0, 255, 204, 0.9)',
-          { x: Math.cos(this.angle) * 15, y: Math.sin(this.angle) * 15 },
-          400 + this.weaponLevel * 50, 5 + this.weaponLevel * 3, true, true
-        ));
+        const swordRange = 75 + this.weaponLevel * 10;
 
-        // 근접 검 직접 타격 및 강력한 넉백
         enemies.forEach((e, ei) => {
           if (getDist(this.x, this.y, e.x, e.y) < swordRange + e.radius) {
-            e.hp -= 10 + this.weaponLevel * 5; // 기본 데미지 대폭 증가
+            e.hp -= 5 + this.weaponLevel * 2;
             
-            // 강력한 광역 넉백
             const kAngle = Math.atan2(e.y - this.y, e.x - this.x);
-            e.x += Math.cos(kAngle) * (30 + this.weaponLevel * 5);
-            e.y += Math.sin(kAngle) * (30 + this.weaponLevel * 5);
+            e.x += Math.cos(kAngle) * (20 + this.weaponLevel * 2);
+            e.y += Math.sin(kAngle) * (20 + this.weaponLevel * 2);
 
-            createExplosion(e.x, e.y, '#00ffcc', 14);
+            createExplosion(e.x, e.y, '#00ffcc', 8);
             if (e.hp <= 0) {
               score += 100; scoreValUI.textContent = score;
               dropItemCheck(e.x, e.y);
@@ -437,11 +404,11 @@ class Player {
         });
 
         if (boss && getDist(this.x, this.y, boss.x, boss.y) < swordRange + boss.radius) {
-          boss.takeDamage(15 + this.weaponLevel * 8); // 보스 추가 데미지 대폭 증가
+          boss.takeDamage(7 + this.weaponLevel * 2);
           const kAngle = Math.atan2(boss.y - this.y, boss.x - this.x);
-          boss.x += Math.cos(kAngle) * 10;
-          boss.y += Math.sin(kAngle) * 10;
-          createExplosion(boss.x, boss.y, '#00ffcc', 20);
+          boss.x += Math.cos(kAngle) * 6;
+          boss.y += Math.sin(kAngle) * 6;
+          createExplosion(boss.x, boss.y, '#00ffcc', 12);
         }
       }
     }
@@ -461,7 +428,7 @@ class Projectile {
   }
   draw() {
     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = this.color; ctx.shadowColor = this.color; ctx.shadowBlur = 10; ctx.fill();
+    ctx.fillStyle = this.color; ctx.shadowColor = this.color; ctx.shadowBlur = 8; ctx.fill();
   }
   update() {
     this.x += this.velocity.x; this.y += this.velocity.y;
@@ -498,7 +465,7 @@ class Boss {
     this.x = x; this.y = y; this.radius = 45; this.stageType = stageType;
     const colors = ['#ff3366', '#ff9900', '#9b59b6', '#2ecc71', '#e74c3c'];
     this.color = colors[stageType - 1];
-    this.maxHp = 60 + stageType * 40; 
+    this.maxHp = 80 + stageType * 50; 
     this.hp = this.maxHp;
     this.speed = 0.8 + stageType * 0.12; 
     this.shootTimer = 0;
@@ -772,8 +739,8 @@ function spawnObstacles() {
 
 function dropItemCheck(x, y) {
   const rand = Math.random();
-  if (rand < 0.12) items.push(new Item(x, y, 'weapon')); // 무기 강화 아이템 드랍률 상향
-  else if (rand < 0.22) items.push(new Item(x, y, 'hp'));
+  if (rand < 0.10) items.push(new Item(x, y, 'weapon'));
+  else if (rand < 0.20) items.push(new Item(x, y, 'hp'));
 }
 
 function destroyBoss() {
@@ -805,7 +772,7 @@ function init() {
   stage = 1; score = 0; stageScoreOffset = 0;
   player = new Player(canvas.width / 2, canvas.height / 2, selectedWeapon);
   
-  const names = { double: '샷건', shotgun: '샷건', sword: '근접검', sniper: '스나이퍼' };
+  const names = { shotgun: '샷건', sword: '근접검', sniper: '스나이퍼' };
   weaponTypeUI.textContent = names[selectedWeapon] || selectedWeapon;
   
   resetStageState();
@@ -834,11 +801,11 @@ function spawnEntities() {
     let y = Math.random() * canvas.height;
     if(Math.random() < 0.5) { x = Math.random() * canvas.width; y = Math.random() < 0.5 ? -30 : canvas.height + 30; }
 
-    const enemyHp = 1 + Math.floor((stage - 1) * 1.2);
+    const enemyHp = 2 + Math.floor((stage - 1) * 1.5);
     const enemySpeed = (1.2 + Math.random()) + (stage - 1) * 0.2;
     const colors = ['#8e44ad', '#27ae60', '#e74c3c', '#f39c12', '#16a085'];
     enemies.push(new Enemy(x, y, 12 + Math.random() * 12, colors[(stage - 1) % colors.length], enemyHp, enemySpeed));
-  }, 1000 - (stage * 50));
+  }, 900 - (stage * 40));
 }
 
 function createExplosion(x, y, color, count) {
@@ -928,7 +895,6 @@ function animate() {
 
   particles.forEach((p, i) => { if (p.alpha <= 0) particles.splice(i, 1); else p.update(); });
 
-  // 아이템 습득 판정 및 무기 레벨업
   items.forEach((item, i) => {
     item.update(player);
     if (getDist(item.x, item.y, player.x, player.y) < player.radius + item.radius) {
@@ -957,8 +923,8 @@ function animate() {
         
         if (p.knockback) {
           const kAngle = Math.atan2(boss.y - p.startY, boss.x - p.startX);
-          boss.x += Math.cos(kAngle) * 5;
-          boss.y += Math.sin(kAngle) * 5;
+          boss.x += Math.cos(kAngle) * 3;
+          boss.y += Math.sin(kAngle) * 3;
         }
 
         createExplosion(p.x, p.y, boss.color, 4);
@@ -975,8 +941,8 @@ function animate() {
 
           if (p.knockback) {
             const kAngle = Math.atan2(e.y - player.y, e.x - player.x);
-            e.x += Math.cos(kAngle) * 18;
-            e.y += Math.sin(kAngle) * 18;
+            e.x += Math.cos(kAngle) * 12;
+            e.y += Math.sin(kAngle) * 12;
           }
 
           createExplosion(p.x, p.y, e.color, 4);
@@ -986,7 +952,7 @@ function animate() {
             createExplosion(e.x, e.y, e.color, 12);
             score += 100; scoreValUI.textContent = score;
             if (player.weaponType !== 'sword') {
-              player.ultGauge = Math.min(player.maxUltGauge, player.ultGauge + 5);
+              player.ultGauge = Math.min(player.maxUltGauge, player.ultGauge + 3);
             }
             dropItemCheck(e.x, e.y);
             enemies.splice(ei, 1);
@@ -1035,7 +1001,6 @@ function endGame() {
   gameOverScreen.classList.remove('hidden');
 }
 
-// 키보드 및 마우스 이벤트
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === ' ') {
@@ -1074,16 +1039,18 @@ canvas.addEventListener('mouseup', () => {
 startBtn.addEventListener('click', () => {
   if (!selectedWeapon) return;
   isGameStarted = true;
-  startScreen.classList.remove('hidden');
+  startScreen.classList.add('hidden');
   init(); animate(); spawnEntities();
 });
 
 document.getElementById('restart-btn').addEventListener('click', () => {
-  startScreen.classList.remove('hidden');
   gameOverScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  isGameStarted = false;
 });
 
 document.getElementById('victory-restart-btn').addEventListener('click', () => {
-  startScreen.classList.remove('hidden');
   victoryScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  isGameStarted = false;
 });
